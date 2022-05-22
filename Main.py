@@ -1,19 +1,19 @@
 import os
 import cv2
-
 import Method
 
 
 if __name__ == "__main__":
-    image_path = "./images/Cameraman.png"
+    image_path = "./images/Lenna.png"
     
     
     save_match_img_root_path = "./"
     shift_x, shift_y = 20, 20
     noise_percent = 0.05
     max_features = 500
-    good_match_percent = 0.3
-    blur_ksize = 0
+    good_match_percent = 0.2
+    blur_ksize = 7
+    threshold = 50
 
     ############################################################
     print("image_path:", image_path)
@@ -47,13 +47,17 @@ if __name__ == "__main__":
     # alignment template (reference): im2.
     # aligned image (src): im1.
     im1_aligned = Method.BlurOrbAlignImg(im1, im2, max_features, good_match_percent, 
-                                         blur_ksize, save_m1_match_m2_img_path)
+                                         blur_ksize, "both", save_m1_match_m2_img_path)
+
+    # to do ...
+    im_aligned_imd = Method.Alignment2D(blur_ksize, threshold)
+    im_aligned_imd.Calculate(im1, im2, "both")
 
     # im2 align to im1.
     # alignment template (reference): im1.
     # aligned image (src): im2.
     im2_aligned = Method.BlurOrbAlignImg(im2, im1, max_features, good_match_percent, 
-                                         blur_ksize, save_m2_match_m1_img_path)
+                                         blur_ksize, "both", save_m2_match_m1_img_path)
 
     
 
