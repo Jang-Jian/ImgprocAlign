@@ -4,30 +4,49 @@ import Method
 
 
 if __name__ == "__main__":
-    image_path = "./images/Lenna.png"
-    
+    image_path = "./images/Airplane.png"
     
     save_match_img_root_path = "./"
     shift_x, shift_y = 20, 20
-    noise_percent = 0.05
-    max_features = 500
-    good_match_percent = 0.2
+    noise_percent = 0.1
     blur_ksize = 7
-    threshold = 50
+    gray_threshold = 50
 
     ############################################################
     print("image_path:", image_path)
     print("noise_percent:", str(noise_percent * 100) + "%")
     print("blur_ksize:", blur_ksize)
+    print("gray_threshold:", gray_threshold)
 
     filename = os.path.splitext(os.path.basename(image_path))[0]
-    save_m1_match_m2_img_path = os.path.join(save_match_img_root_path, filename + "_im1Matchim2_shiftX_" + str(shift_x) + "_shiftY_" + str(shift_y) + \
-                                "_spNosieP_" + str(noise_percent) + "_maxFeatures_" + str(max_features) + "_matchP_" + str(good_match_percent) + \
-                                "_blurKsize_" + str(blur_ksize) + ".jpg")
-    save_m2_match_m1_img_path = os.path.join(save_match_img_root_path, filename + "_im2Matchim1_shiftX_" + str(shift_x) + "_shiftY_" + str(shift_y) + \
-                                "_spNosieP_" + str(noise_percent) + "_maxFeatures_" + str(max_features) + "_matchP_" + str(good_match_percent) + \
-                                "_blurKsize_" + str(blur_ksize) + ".jpg")
-    save_difference_map_path = os.path.join(save_match_img_root_path, filename + "_spNosieP_" + str(noise_percent) + \
+    
+    save_org_im2_path = os.path.join(save_match_img_root_path, filename + "_spNosieP_" + \
+                                    str(noise_percent) + "_img2.png")
+    save_im1_alignment_path = os.path.join(save_match_img_root_path, filename + "_spNosieP_" + str(noise_percent) + 
+                                 "_grayThreshold_" + str(gray_threshold) + \
+                               "_blurKsize_" + str(blur_ksize) + "_im1_align2_img2.jpg")
+    save_im2_alignment_path = os.path.join(save_match_img_root_path, filename + "_spNosieP_" + str(noise_percent) + 
+                                 "_grayThreshold_" + str(gray_threshold) + \
+                               "_blurKsize_" + str(blur_ksize) + "_im2_align2_img1.jpg")
+
+    save_src_draw_bbox_path = os.path.join(save_match_img_root_path, filename + "_spNosieP_" + str(noise_percent) + 
+                                 "_grayThreshold_" + str(gray_threshold) + \
+                               "_blurKsize_" + str(blur_ksize) + "_src_draw_bbox.jpg")
+    
+    save_ref_draw_bbox_path = os.path.join(save_match_img_root_path, filename + "_spNosieP_" + str(noise_percent) + 
+                                 "_grayThreshold_" + str(gray_threshold) + \
+                               "_blurKsize_" + str(blur_ksize) + "_ref_draw_bbox.jpg")
+
+    save_src_binary_path = os.path.join(save_match_img_root_path, filename + "_spNosieP_" + str(noise_percent) + 
+                                 "_grayThreshold_" + str(gray_threshold) + \
+                               "_blurKsize_" + str(blur_ksize) + "_src_binary.jpg")
+    
+    save_ref_binary_path = os.path.join(save_match_img_root_path, filename + "_spNosieP_" + str(noise_percent) + 
+                                 "_grayThreshold_" + str(gray_threshold) + \
+                               "_blurKsize_" + str(blur_ksize) + "_ref_binary.jpg")
+
+    save_difference_map_path = os.path.join(save_match_img_root_path, filename + "_spNosieP_" + str(noise_percent) + 
+                                 "_grayThreshold_" + str(gray_threshold) + \
                                "_blurKsize_" + str(blur_ksize) + "_absdiff_after_shift.jpg")
     
 
@@ -46,23 +65,33 @@ if __name__ == "__main__":
     # im1 align to im2.
     # alignment template (reference): im2.
     # aligned image (src): im1.
-    im1_aligned = Method.BlurOrbAlignImg(im1, im2, max_features, good_match_percent, 
-                                         blur_ksize, "both", save_m1_match_m2_img_path)
-
-    # to do ...
-    im_aligned_imd = Method.Alignment2D(blur_ksize, threshold)
-    im_aligned_imd.Calculate(im1, im2, "both")
+    im1_align2_im2 = Method.Alignment2D(blur_ksize, gray_threshold)
+    im1_aligned_results = im1_align2_im2.Calculate(im1, im2, "both")
+    im1_aligned, src_tmp_draw, ref_tmp_draw, src_binary, ref_binary = im1_aligned_results
 
     # im2 align to im1.
     # alignment template (reference): im1.
     # aligned image (src): im2.
-    im2_aligned = Method.BlurOrbAlignImg(im2, im1, max_features, good_match_percent, 
-                                         blur_ksize, "both", save_m2_match_m1_img_path)
+    im2_align2_imd = Method.Alignment2D(blur_ksize, gray_threshold)
+    im2_aligned_results = im2_align2_imd.Calculate(im2, im1, "both")
+    im2_aligned, src_tmp_draw, ref_tmp_draw, src_binary, ref_binary = im2_aligned_results
 
     
 
     # Output difference map.
     difference_map = Method.WriteAbsDiffImg(im1_aligned, im2_aligned, save_difference_map_path)
+
+
+    # save experimential results.
+    cv2.imwrite(save_org_im2_path, im2)
+    cv2.imwrite(save_im1_alignment_path, im1_aligned)
+    cv2.imwrite(save_im2_alignment_path, im2_aligned)
+    cv2.imwrite(save_difference_map_path, difference_map)
+    cv2.imwrite(save_src_draw_bbox_path, src_tmp_draw)
+    cv2.imwrite(save_ref_draw_bbox_path, ref_tmp_draw)
+    cv2.imwrite(save_src_binary_path, src_binary)
+    cv2.imwrite(save_ref_binary_path, ref_binary)
+
 
 
     cv2.imshow("im1", im1)

@@ -42,12 +42,18 @@ class Alignment2D(object):
         self.__threshold = threshold
 
     def __CvtGray2Binary(self, gray: np.ndarray) -> np.ndarray:
+        """
+        convert gray to binary (get the contours).
+        """
         dst = gray.copy()
         dst[dst >= self.__threshold] = 255
         dst[dst < self.__threshold] = 0
         return dst
 
     def __GetMaxContourLoc(self, binary: np.ndarray) -> tuple:
+        """
+        evaluate the max contour and get the bounding box location.
+        """
         _, contours, _ = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         
         max_area = 0
@@ -62,21 +68,44 @@ class Alignment2D(object):
         
         return max_area_loc
 
-    def Calculate(self, src: np.ndarray, reference: np.ndarray, blur_mode: str = "both"):
+    def __CvtAreaLoc24Loc(self, rea_loc: tuple) -> np.ndarray:
+        """
+        convert the (x, y, w, h) to four potins including 
+        top_left, top_right, bottom_left & bottom_right.
+        """
+        x, y, w, h = rea_loc
+        top_left = [x, y]
+        top_right = [x + w, y]
+        bottom_left = [x, y + h]
+        bottom_right = [x + w, y + h]
+
+        return np.float32([top_left, top_right, bottom_left, bottom_right])
+
+    def __ImageFiiltering(self, src: np.ndarray, reference: np.ndarray, blur_mode: str = "both") -> tuple:
+        """
+        src & reference do image blur to prevent image nosie affect alignment performance.
+        """
+        if self.__blur_ksize > 0:
+            if blur_mode == "both":
+                src = cv2.blur(src, self.__blur_mask)
+                reference = cv2.blur(reference, self.__blur_mask)
+            elif blur_mode == "src":
+                src = cv2.blur(src, self.__blur_mask)
+            elif blur_mode == "reference":
+                reference = cv2.blur(reference, self.__blur_mask)
+            else:
+                print("Method.py(BlurOrbAlignImg): blur_mode " + blur_mode + " is not exist.")
+        return (src, reference)
+
+    def Calculate(self, src: np.ndarray, reference: np.ndarray, blur_mode: str = "both") -> tuple:
+        """
+        do alignment.
+        """
         src_tmp = src.copy()
         ref_tmp = reference.copy()
 
         # Do bluring.
-        if self.__blur_ksize > 0:
-            if blur_mode == "both":
-                src_tmp = cv2.blur(src_tmp, self.__blur_mask)
-                ref_tmp = cv2.blur(ref_tmp, self.__blur_mask)
-            elif blur_mode == "src":
-                src_tmp = cv2.blur(src_tmp, self.__blur_mask)
-            elif blur_mode == "reference":
-                ref_tmp = cv2.blur(ref_tmp, self.__blur_mask)
-            else:
-                print("Method.py(BlurOrbAlignImg): blur_mode " + blur_mode + " is not exist.")
+        src_tmp, ref_tmp = self.__ImageFiiltering(src_tmp, ref_tmp, blur_mode)
         
         # Convert images to grayscale
         src_gray = cv2.cvtColor(src_tmp, cv2.COLOR_BGR2GRAY)
@@ -89,7 +118,23 @@ class Alignment2D(object):
         # Get max area location with x, y, w & h.
         src_max_loc = self.__GetMaxContourLoc(src_binary)
         ref_max_loc = self.__GetMaxContourLoc(ref_binary)
+
+        # Convert (x, y, w, h) to four points.
+        src_loc_4p = self.__CvtAreaLoc24Loc(src_max_loc)
+        src_ref_4p = self.__CvtAreaLoc24Loc(ref_max_loc)
+
+
+        # get transform matrix before perspective transform.
+        transform_mat = cv2.getPerspectiveTransform(src_loc_4p, src_ref_4p)
+
+        # Do alignment using perspective transform.
+        dst_aligned = cv2.warpPerspective(src, transform_mat, 
+                                          (reference.shape[1], reference.shape[0]))
         
+
+        #print(src_max_loc)
+        #print()
+        #print(ref_max_loc)
         src_tmp_draw = src_tmp.copy()
         ref_tmp_draw = ref_tmp.copy()
         sx, sy, sw, sh = src_max_loc
@@ -97,80 +142,14 @@ class Alignment2D(object):
         cv2.rectangle(src_tmp_draw,(sx, sy),(sx + sw, sy + sh), (255,255,0),2)
         cv2.rectangle(ref_tmp_draw,(rx, ry),(rx + rw, ry + rh), (255,255,0),2)
 
-        cv2.imshow("src_tmp_draw", src_tmp_draw)
-        cv2.imshow("ref_tmp_draw", ref_tmp_draw)
+        cv2.imshow("src_bbox_draw", src_tmp_draw)
+        cv2.imshow("ref_bbox_draw", ref_tmp_draw)
+        cv2.imshow("src_binary", src_binary)
+        cv2.imshow("ref_binary", ref_binary)
+        #cv2.imshow("dst_aligned", dst_aligned)
+        return (dst_aligned, src_tmp_draw, ref_tmp_draw, src_binary, ref_binary)
 
-        # use top-left, top-right, bottom-left & bottom-right 4 points to do alignment. 
-    
-
-
-def BlurOrbAlignImg(src: np.ndarray, reference: np.ndarray, 
-                    max_features: int = 500, good_match_percent: float = 0.15, 
-                    src_blur_ksize: int = 5, blur_mode: str = "both", save_fmatchs_img_path: str = ""):
-    """
-    align the src image by reference image by Oriented FAST method.
-    ORB: An efficient alternative to SIFT or SURF.
-    """
-    src_tmp = src.copy()
-    ref_tmp = reference.copy()
-    if src_blur_ksize > 0:
-        if blur_mode == "both":
-            src_tmp = cv2.blur(src_tmp, (src_blur_ksize, src_blur_ksize))
-            ref_tmp = cv2.blur(ref_tmp, (src_blur_ksize, src_blur_ksize))
-        elif blur_mode == "src":
-            src_tmp = cv2.blur(src_tmp, (src_blur_ksize, src_blur_ksize))
-        elif blur_mode == "reference":
-            ref_tmp = cv2.blur(ref_tmp, (src_blur_ksize, src_blur_ksize))
-        else:
-            print("Method.py(BlurOrbAlignImg): blur_mode " + blur_mode + " is not exist.")
-
-    # Convert images to grayscale
-    src_gray = cv2.cvtColor(src_tmp, cv2.COLOR_BGR2GRAY)
-    ref_gray = cv2.cvtColor(ref_tmp, cv2.COLOR_BGR2GRAY)
-    
-    
-
-
-    # Detect ORB features and compute descriptors.
-    orb = cv2.ORB_create(max_features)
-    keypoints1, descriptors1 = orb.detectAndCompute(src_gray, None)
-    keypoints2, descriptors2 = orb.detectAndCompute(ref_gray, None)
-
-    # Match features.
-    matcher = cv2.DescriptorMatcher_create(cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_HAMMING)
-    matches = matcher.match(descriptors1, descriptors2, None)
-
-    # Sort matches by score
-    matches.sort(key=lambda x: x.distance, reverse=False)
-
-    # Remove not so good matches
-    numGoodMatches = int(len(matches) * good_match_percent)
-    matches = matches[:numGoodMatches]
-
-    # Draw top matches
-    if save_fmatchs_img_path != "":
-        img_matches = cv2.drawMatches(src_tmp, keypoints1, reference, keypoints2, matches, None)
-        cv2.imwrite(save_fmatchs_img_path, img_matches)
-
-    # Extract location of good matches
-    points1 = np.zeros((len(matches), 2), dtype=np.float32)
-    points2 = np.zeros((len(matches), 2), dtype=np.float32)
-
-    for i, match in enumerate(matches):
-        points1[i, :] = keypoints1[match.queryIdx].pt
-        points2[i, :] = keypoints2[match.trainIdx].pt
-
-    # Find transform matrix using homography with RANSAC.
-    # RANSAC: RANdom SAmple Consensus
-    h, mask = cv2.findHomography(points1, points2, cv2.RANSAC, confidence=0.9)
-
-    # Use homography with 
-    height, width, channels = reference.shape
-    dst_aligned = cv2.warpPerspective(src, h, (width, height))
-
-    return dst_aligned
-
-
+ 
 def WriteAbsDiffImg(src1: np.ndarray, src2: np.ndarray, save_absimg_path: str) -> np.ndarray:
     """
     absolutely difference between src1 & src2 images, and save result.
