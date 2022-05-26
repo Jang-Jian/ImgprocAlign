@@ -10,6 +10,10 @@
 + blur_ksize: mean filtering kernel size.
 + gray_threshold: create a binary map between 0 and 255.
 
+## Library.
+
++ opencv-python, 3.4.16.59
+
 ## How to run ?
 ```
 python3 Main.py
