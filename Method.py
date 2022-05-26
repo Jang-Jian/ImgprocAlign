@@ -1,7 +1,6 @@
 import cv2
 import sys
 import random
-from cv2 import threshold
 import numpy as np
 
 
